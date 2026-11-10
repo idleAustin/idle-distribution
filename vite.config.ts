@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import wasm from 'vite-plugin-wasm';
 import topLevelAwait from 'vite-plugin-top-level-await';
@@ -18,12 +18,25 @@ function buildCommit() {
   }
 }
 
+const commit = buildCommit();
+
+/** Emits dist/version.json so idlemullet.com can read the live deployed game version. */
+function versionManifestPlugin(): Plugin {
+  const manifest = JSON.stringify({ version: `v${version.replace(/^v/, '')}`, commit });
+  return {
+    name: 'version-manifest',
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: 'version.json', source: manifest });
+    },
+  };
+}
+
 export default defineConfig({
   base: process.env.BASE_URL ?? (process.env.PALLET_BROWSER_TEST === '1' ? '/' : '/idle-distribution/'),
-  plugins: [react(), wasm(), topLevelAwait()],
+  plugins: [react(), wasm(), topLevelAwait(), versionManifestPlugin()],
   define: {
     __APP_VERSION__: JSON.stringify(version),
-    __APP_COMMIT__: JSON.stringify(buildCommit()),
+    __APP_COMMIT__: JSON.stringify(commit),
   },
   // Browser tests use a fixed build; cloud-sync file events must not reload mid-gesture.
   server: process.env.PALLET_BROWSER_TEST === '1' ? { watch: null } : undefined,
